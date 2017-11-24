@@ -1,0 +1,239 @@
+# Language setting
+language: python
+
+# Version number
+python:
+  - "3.6"
+build:
+  ci:
+    - python --version
+
+resources:
+
+#CLICONFIG
+  - name: ar-dockercli
+    type: cliConfig
+    integration: "docker"
+
+#CLUSTERS
+  - name: ar-ddccluster
+    type: cluster
+    integration: ddc
+    pointer:
+      sourceName : "nothing" #we can anything because it is mandatory but ddc doesnot have clusters
+
+#DOCKER OPTIONS
+  - name: ar-dockeroptions
+    type: dockerOptions
+    version:
+      memory: 100
+
+#FILES
+  - name: ar-files
+    type: file
+    integration: docker
+    pointer:
+      sourceName: "random"
+    seed:
+      versionName: "random-2"
+
+#GITREPO:
+  - name: ar-gitrepo
+    type: gitRepo
+    integration: "github"
+    pointer:
+      sourceName: "Varsha-Arun/sample_pipelines"
+      branch: master
+      #tags:
+       # only:
+        #  - v1.*
+      buildOnCommit: true    
+      buildOnPullRequest: true
+      buildOnRelease: true
+      buildOnTagPush: true
+      
+#IMAGES
+  - name: ar-image
+    type: image
+    integration: docker
+    pointer:
+      sourceName: "shippabledocker/pipelinev2"
+    seed:
+      versionName: "deploy.1"
+
+#INTEGRATION
+  - name: ar-dockerintegration
+    type: integration
+    integration: "docker"
+
+#LOAD BALANCER
+  - name: ar-loadbalancer
+    type: loadBalancer
+    pointer:
+      sourceName: EC2Contai-EcsElast-GPCOXIIKWPUJSREYA
+
+#NOTIFICATIONS
+  - name: ar-slack
+    type: notification
+    integration: "slack"
+    pointer:
+      recipients:
+        - "#pipeline-pvt"
+        - "#pipeline-public"
+        - "@shiphitchcock1"
+        - "#random"
+
+#PARAMS
+  - name: ar-params
+    type: params
+    version:
+      params:
+        foo: bar
+        #secure: Xuq1cwGOn1lR1UTMfcwhdPUhJJXr0FeeG/M0/l4v7HFcjIRdrML13//R4RbMWxIeUtmdRWT1y3HRgQSqsRbYRIYF/6rTYH3/eazkowA2hHPZpT8vNfr3tFZJwQeSTf0qGtZOMO1iOacgaFOBgAdBCheJA8tN3ARHapUWk5bxuj7CpIq/LNWEbR/TcNNWaZJkyoWeK6/4U61xNPbVgyL1e73m3WmHPcGwpgTyxW+T1jqgh5m99D3p87UrfTeS6ss5YNA8lkZmFpdYZrq2LIKBMSJuq46Vj1VwRrtRGXYN2eYzmyDvpevciShm6Ai8w8o18eY6dwKrch8PSNloCVDHDA== 
+        DB_HOST: "ds015700.mlab.com"
+        DB_NAME: "ayeaye"
+        DB_PORT: "15700"
+        DB_USERNAME: "aye0aye"
+        DB_PASSWORD: "aye0aye"
+        ENVIRONMENT: "test-aws"
+      
+        
+#REPLICAS
+  - name: ar-replica
+    type: replicas
+    version:
+      count: 2
+
+#STATE
+  - name: ar-state
+    type: state
+    
+#TIME
+  - name: ar-testtime
+    type: time
+    seed:
+      interval: "1 1 1 * *" #"*/9 * 9 9 *"
+      
+#VERSIONS
+
+  - name: ar-version
+    type: version
+    seed:
+      versionName: "6.1.2"
+
+jobs:
+
+#DEPLOY  
+  - name: ar-ddcdeploy
+    type: deploy
+    allowPublicAccess: true
+    steps:
+      - IN: ar-ddccluster
+      - IN: ar-manifest
+        switch: off
+      - IN: ar-params
+      - IN: ar-dockeroptions
+      - IN: ar-replica
+        #versionNumber: 1000 
+        
+#JENKINSJOB
+  - name: ar-jenkins                  # a memorable, unique name. this is how your job will be referred to in shippable pipelines
+    type: jenkinsJob                  # The type of the job (should not be changed by the user)
+    integration: "jenkins"       # The name of your Jenkins integration (created via accountSettings page)
+    pointer:
+      sourceName: "firstjob1"         # The name of your Jenkins job
+    steps:
+      - OUT: "ar-files" 
+
+#MANIFESTS
+  - name: ar-manifest
+    type: manifest
+    steps:
+      - IN: ar-image
+      # versionNumber: 100
+      #- OUT: ar-image4invalidformat
+      - IN: ar-tg1
+    allowPublicAccess: true
+
+#PROVISION
+  - name: ar-provision                                               #required
+    type: provision                                                  #required
+    steps:
+      - IN: ar-files 
+      
+#RELEASE
+  - name: ar-release
+    type: release
+    #allowPublicAccess: true
+    on_start:
+      - NOTIFY: ar-slack
+    steps:
+      - IN: ar-version
+         #versionName: testrelease
+      - IN: ar-inrunSh
+      - TASK: managed
+        bump: rc
+       #- IN: ar-tg3
+    flags:
+      - ar-release    
+    on_success:
+      - NOTIFY: ar-slack
+    on_failure:
+      - NOTIFY: ar-slack
+
+#RUNCI
+  - name: sample_pipelines_runCI
+    type: runCI
+    #allowPublicAccess: true
+    on_start:
+      - NOTIFY: ar-slack
+    steps:
+      - IN: ar-dockercli
+         #versionName: testrelease
+    flags:
+      - ar-release   
+      
+#RUNSH      
+  - name: ar-inrunSh
+    type: runSh
+    allowPublicAccess: true
+    on_start:
+      - NOTIFY: ar-slack
+      - script: echo 'on start'
+    steps:
+      - IN: ar-gitrepo
+      # versionName: testsha
+      - TASK:
+        - script: ls
+        - script: ./IN/ar-gitrepo/gitRepo/echo.sh
+        - script: export FOO=foo1
+        - script: echo $FOO
+     # - OUT: ar-image2invalidimg    
+    on_success:
+      - script: echo 'Success'
+    on_failure:
+      - script: echo 'Failure runSh'
+      - NOTIFY: ar-slack
+
+#RUNCLI      
+  - name: ar-inrunCLI
+    type: runCLI
+    allowPublicAccess: true
+    steps:
+      - IN: ar-gitrepo
+      # versionName: testsha
+      - IN: ar-dockercli
+      - IN: ar-testtime
+      - IN: ar-loadbalancer
+      - IN: ar-files
+      - TASK:
+        - script: ls
+        - script: ./IN/ar-gitrepo/gitRepo/echo.sh
+
+triggers:
+
+#TRIGGER
+  - name: ar-tg1
+    type: trigger
+    version:
+      counter: 0
